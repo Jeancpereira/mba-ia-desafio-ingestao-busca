@@ -1,10 +1,10 @@
-from search import search_prompt
+from search import build_chain
 
 EXIT_COMMANDS = {"sair", "exit", "quit"}
 
 
 def main():
-    chain = search_prompt()
+    chain = build_chain()
 
     if not chain:
         print("Não foi possível iniciar o chat. Verifique os erros de inicialização.")
@@ -27,12 +27,15 @@ def main():
             break
 
         try:
-            answer = chain.invoke(question)
+            answer = chain.ask(question)
+        except KeyboardInterrupt:
+            print("\nEncerrando o chat.")
+            break
         except Exception as error:
-            print(f"Erro ao processar a pergunta: {error}\n")
+            print(f"Erro ao processar a pergunta ({type(error).__name__}): {error}\n")
             continue
 
-        print(f"RESPOSTA: {answer.content}\n")
+        print(f"RESPOSTA: {answer}\n")
 
 
 if __name__ == "__main__":

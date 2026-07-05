@@ -17,7 +17,7 @@ def get_provider():
     return provider
 
 
-def _require_env(name):
+def require_env(name):
     value = os.getenv(name)
     if not value:
         raise ValueError(f"Variável de ambiente obrigatória não definida: {name}")
@@ -31,15 +31,18 @@ def get_embeddings():
 
         return OpenAIEmbeddings(
             model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-            api_key=_require_env("OPENAI_API_KEY"),
+            api_key=require_env("OPENAI_API_KEY"),
         )
 
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
     return GoogleGenerativeAIEmbeddings(
         model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/embedding-001"),
-        google_api_key=_require_env("GOOGLE_API_KEY"),
+        google_api_key=require_env("GOOGLE_API_KEY"),
     )
+
+
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 
 
 def get_llm():
@@ -49,15 +52,17 @@ def get_llm():
 
         return ChatOpenAI(
             model=os.getenv("OPENAI_LLM_MODEL", "gpt-5-nano"),
-            api_key=_require_env("OPENAI_API_KEY"),
+            api_key=require_env("OPENAI_API_KEY"),
+            timeout=LLM_TIMEOUT_SECONDS,
         )
 
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     return ChatGoogleGenerativeAI(
         model=os.getenv("GOOGLE_LLM_MODEL", "gemini-2.5-flash-lite"),
-        google_api_key=_require_env("GOOGLE_API_KEY"),
+        google_api_key=require_env("GOOGLE_API_KEY"),
         temperature=0,
+        timeout=LLM_TIMEOUT_SECONDS,
     )
 
 
@@ -66,7 +71,7 @@ def get_vector_store():
 
     return PGVector(
         embeddings=get_embeddings(),
-        collection_name=_require_env("PG_VECTOR_COLLECTION_NAME"),
-        connection=_require_env("DATABASE_URL"),
+        collection_name=require_env("PG_VECTOR_COLLECTION_NAME"),
+        connection=require_env("DATABASE_URL"),
         use_jsonb=True,
     )

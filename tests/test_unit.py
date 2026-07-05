@@ -63,6 +63,59 @@ class TestPrompt:
         assert "trecho B" in contexto
 
 
+class TestSearchChain:
+    def test_ask_sem_resultados_nao_chama_llm(self):
+        class StoreVazio:
+            def similarity_search_with_score(self, question, k):
+                return []
+
+        class LLMNuncaChamado:
+            def invoke(self, message):
+                raise AssertionError("LLM não deveria ser chamado sem contexto")
+
+        chain = search.SearchChain(StoreVazio(), LLMNuncaChamado())
+        assert chain.ask("qualquer pergunta") == search.NO_CONTEXT_ANSWER
+
+    def test_ask_com_resultados_chama_llm_com_contexto(self):
+        class Doc:
+            def __init__(self, content):
+                self.page_content = content
+
+        class StoreComResultado:
+            def similarity_search_with_score(self, question, k):
+                return [(Doc("fato relevante"), 0.9)]
+
+        class LLMEcoa:
+            def invoke(self, message):
+                class Resposta:
+                    content = "ok"
+
+                assert "fato relevante" in message.to_string()
+                return Resposta()
+
+        chain = search.SearchChain(StoreComResultado(), LLMEcoa())
+        assert chain.ask("pergunta") == "ok"
+
+
+class TestIngestDedup:
+    def test_chunk_id_e_deterministico(self):
+        class Chunk:
+            def __init__(self, content, page):
+                self.page_content = content
+                self.metadata = {"page": page}
+
+        c1 = Chunk("mesmo conteúdo", 3)
+        c2 = Chunk("mesmo conteúdo", 3)
+        c3 = Chunk("conteúdo diferente", 3)
+        assert ingest._chunk_id("doc.pdf", c1) == ingest._chunk_id("doc.pdf", c2)
+        assert ingest._chunk_id("doc.pdf", c1) != ingest._chunk_id("doc.pdf", c3)
+
+    def test_pdf_path_ausente_gera_erro_claro(self, monkeypatch):
+        monkeypatch.delenv("PDF_PATH", raising=False)
+        with pytest.raises(ValueError, match="PDF_PATH"):
+            ingest.ingest_pdf()
+
+
 class TestProviders:
     def test_provider_invalido_gera_erro(self, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "banana")
@@ -82,6 +135,12 @@ class TestProviders:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises(ValueError, match="OPENAI_API_KEY"):
             providers.get_embeddings()
+
+    def test_llm_tem_timeout_configurado(self, monkeypatch):
+        monkeypatch.setenv("LLM_PROVIDER", "openai")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        llm = providers.get_llm()
+        assert llm.request_timeout == providers.LLM_TIMEOUT_SECONDS
 
     def test_llm_openai_classe_correta(self, monkeypatch):
         monkeypatch.setenv("LLM_PROVIDER", "openai")
